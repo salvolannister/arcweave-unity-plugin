@@ -132,6 +132,16 @@ If your Arcweave project uses images:
 
 The plugin loads images dynamically using `Resources.Load()`.
 
+### Adding Audio Assets
+
+If your Arcweave project uses audio:
+
+1. Create a `Resources` folder in your Unity project (if it doesn't exist).
+2. Copy your audio files into the `Resources` folder.
+3. Ensure audio filenames match those in Arcweave (including extension, e.g. `sfx.mp3`).
+
+The plugin resolves audio clips dynamically using `AudioAsset.TryGetAudioClip()`, which calls `Resources.Load<AudioClip>()` with the filename (without extension).
+
 ---
 
 ## How the Demo Works
@@ -241,6 +251,7 @@ The demo consists of two main components that work together:
 | `element.RuntimeContent` | Element | Get evaluated dialogue text |
 | `element.RunContentScript()` | Element | Execute Arcscript and update RuntimeContent |
 | `element.GetCoverOrFirstComponentImage()` | Element | Get element's cover or first component image |
+| `element.GetAudioAssets()` | Element | Get audio assets attached to the element |
 | `path.ExecuteAppendedConnectionLabels()` | Path | Run Arcscript in connection labels |
 | `path.text` | Path | Get label text or target element title |
 | `options.Paths` | Options | List of valid paths to choose from |
@@ -323,6 +334,7 @@ A narrative node containing dialogue content.
 | `Attributes` | List\<Attribute\> | Custom metadata |
 | `Outputs` | List\<Connection\> | Outgoing connections |
 | `cover` | Cover | Cover image reference |
+| `AudioAssets` | AudioAsset[] | Audio assets attached to this element |
 
 #### Methods
 
@@ -336,6 +348,7 @@ A narrative node containing dialogue content.
 | `Texture2D GetCoverImage()` | Load cover image from Resources |
 | `Texture2D GetFirstComponentCoverImage()` | Load first component's cover image |
 | `Texture2D GetCoverOrFirstComponentImage()` | Get cover or fallback to component image |
+| `AudioAsset[] GetAudioAssets()` | Get all audio assets attached to this element |
 
 #### Code Example
 
@@ -486,6 +499,67 @@ Global state variable. Supports: `int`, `double`, `bool`, `string`.
 
 ---
 
+### AudioAsset
+
+Represents an audio asset attached to an element, as defined in the Arcweave project JSON.
+
+#### Enum: AudioAsset.Mode
+
+| Value | Description |
+|-------|-------------|
+| `Once` | Play the audio once |
+| `Stop` | Stop all instances of the audio sharing the same `asset` ID |
+| `Loop` | Play the audio in a loop |
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | string | Unique identifier for this audio instance |
+| `asset` | string | ID used to look up the audio file name/URL from the JSON |
+| `name` | string | Filename inclusive of extension (e.g. `music.mp3`) |
+| `mode` | AudioAsset.Mode | Playback mode (Once, Stop, or Loop) |
+| `delay` | float | Delay in seconds before the audio plays |
+| `volume` | float | Playback volume (0.0–1.0) |
+
+#### Methods
+
+| Method | Description |
+|--------|-------------|
+| `AudioClip TryGetAudioClip()` | Load and return the AudioClip from a Resources folder (matched by filename without extension), or null if not found |
+
+#### Code Example
+
+```csharp
+// After entering an element, play any attached audio assets
+element.RunContentScript();
+
+AudioAsset[] audioAssets = element.GetAudioAssets();
+foreach (AudioAsset audioAsset in audioAssets)
+{
+    AudioClip clip = audioAsset.TryGetAudioClip();
+    if (clip == null) continue;
+
+    switch (audioAsset.mode)
+    {
+        case AudioAsset.Mode.Once:
+            audioSource.PlayOneShot(clip, audioAsset.volume);
+            break;
+        case AudioAsset.Mode.Loop:
+            audioSource.clip = clip;
+            audioSource.volume = audioAsset.volume;
+            audioSource.loop = true;
+            audioSource.Play();
+            break;
+        case AudioAsset.Mode.Stop:
+            audioSource.Stop();
+            break;
+    }
+}
+```
+
+---
+
 ### Cover
 
 Image or video reference.
@@ -583,7 +657,9 @@ Event-driven narrative player (demo helper class).
 
 5. **Images must be in Resources folder**: Cover images are loaded via `Resources.Load()`. Place them in any `Resources` folder and ensure filenames match (without extension).
 
-6. **Components are not MonoBehaviours**: Arcweave Components represent characters/entities in your narrative, not Unity components.
+6. **Audio clips must be in Resources folder**: `AudioAsset.TryGetAudioClip()` uses `Resources.Load<AudioClip>()`. Place audio files in any `Resources` folder; matching is done by filename without extension.
+
+7. **Components are not MonoBehaviours**: Arcweave Components represent characters/entities in your narrative, not Unity components.
 
 7. **Visit tracking is manual**: The `Visits` property must be incremented manually (or use ArcweavePlayer which does it automatically).
 
@@ -602,6 +678,15 @@ Event-driven narrative player (demo helper class).
 4. This migrates from the legacy Input Manager to the new Input System
 
 Unity 6 requires the new Input System for UI interactions.
+
+### Audio clips not loading?
+
+**Problem:** `TryGetAudioClip()` returns null.
+
+**Solution:**
+- Ensure audio files are in a folder named exactly `Resources` (case-sensitive)
+- Verify the filename in your Arcweave project matches the file on disk (the plugin strips the extension automatically)
+- Confirm the audio format is supported by Unity (e.g. `.wav`, `.mp3`, `.ogg`)
 
 ### Images not loading?
 
